@@ -1,7 +1,11 @@
+using CoffeeMachineAPI.Middleware;
+
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
 int requestCount = 0;
+
+app.UseExceptionHandling();
 
 app.MapGet("/brew-coffee", () =>
 {
@@ -13,7 +17,7 @@ app.MapGet("/brew-coffee", () =>
     }
     // secure the thread in case of race condition
     var count = Interlocked.Increment(ref requestCount);
-    
+
     // every 5th request
     if (count % 5 == 0)
     {
@@ -29,3 +33,4 @@ app.MapGet("/brew-coffee", () =>
 });
 
 app.Run();
+
