@@ -1,15 +1,18 @@
 using CoffeeMachineAPI.Middleware;
+using CoffeeMachineAPI.Service;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddSingleton<IDateTimeService, DateTimeService>();
+
 var app = builder.Build();
 
 int requestCount = 0;
 
 app.UseExceptionHandling();
 
-app.MapGet("/brew-coffee", () =>
+app.MapGet("/brew-coffee", (IDateTimeService DateTimeService) =>
 {
-    var now = DateTime.UtcNow;
+    var now = DateTimeService.GetCurrentTime();
     // on April 1st
     if (now.Month == 4 && now.Day == 1)
     {
