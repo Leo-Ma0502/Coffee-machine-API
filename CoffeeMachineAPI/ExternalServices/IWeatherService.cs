@@ -4,6 +4,6 @@ namespace CoffeeMachineAPI.Service
 {
     public interface IWeatherService
     {
-        Task<WeatherResponse> GetCurrentWeatherAsync(double lat, double lon);
+        Task<WeatherResponse> GetCurrentWeatherAsync(double? lat, double? lon);
     }
 }

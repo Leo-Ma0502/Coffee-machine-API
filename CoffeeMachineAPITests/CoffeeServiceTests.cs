@@ -35,7 +35,7 @@ public class CoffeeServiceTests
         var now = new DateTime(2030, 5, 2, 14, 0, 1);
         _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(now);
 
-        var response = await _coffeeService.BrewCoffee();
+        var response = await _coffeeService.BrewCoffee(null);
 
         Assert.Equal(200, response.StatusCode);
         Assert.Contains("Your piping hot coffee is ready", response.Body);
@@ -48,7 +48,7 @@ public class CoffeeServiceTests
         var aprilFools = new DateTime(2033, 4, 1);
         _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(aprilFools);
 
-        var response = await _coffeeService.BrewCoffee();
+        var response = await _coffeeService.BrewCoffee(null);
 
         Assert.Equal(418, response.StatusCode);
         Assert.Null(response.Body);
@@ -63,10 +63,10 @@ public class CoffeeServiceTests
 
         for (int i = 0; i < 4; i++)
         {
-            _coffeeService.BrewCoffee();
+            await _coffeeService.BrewCoffee(null);
         }
 
-        var response = await _coffeeService.BrewCoffee();
+        var response = await _coffeeService.BrewCoffee(null);
 
         Assert.Equal(503, response.StatusCode);
         Assert.Null(response.Body);
@@ -88,7 +88,8 @@ public class CoffeeServiceTests
 
         for (int i = 0; i < numberOfRequests; i++)
         {
-            tasks.Add(Task.Run(_coffeeService.BrewCoffee));
+            tasks.Add(Task.Run(() => _coffeeService.BrewCoffee(null)));
+
         }
 
         var responses = await Task.WhenAll(tasks);
@@ -110,7 +111,7 @@ public class CoffeeServiceTests
 
         for (int i = 0; i < numberOfRequests; i++)
         {
-            tasks.Add(Task.Run(() => _coffeeService.BrewCoffee()));
+            tasks.Add(Task.Run(() => _coffeeService.BrewCoffee(null)));
         }
 
         var responses = await Task.WhenAll(tasks);
@@ -130,7 +131,7 @@ public class CoffeeServiceTests
         var edgeDateTime = DateTime.Parse(dateTime);
         _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(edgeDateTime);
 
-        var response = await _coffeeService.BrewCoffee();
+        var response = await _coffeeService.BrewCoffee(null);
 
         Assert.Equal(edgeDateTime.Day == 1 && edgeDateTime.Month == 4 ? 418 : 200, response.StatusCode);
     }
@@ -146,7 +147,7 @@ public class CoffeeServiceTests
             .GetField("requestCount", BindingFlags.NonPublic | BindingFlags.Instance)
             ?.SetValue(_coffeeService, int.MaxValue - 10);
 
-        var response = await _coffeeService.BrewCoffee();
+        var response = await _coffeeService.BrewCoffee(null);
 
         var expectedStatusCodes = new List<int> { 200, 503 };
 

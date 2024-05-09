@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CoffeeMachineAPI.Model;
 using CoffeeMachineAPI.Service;
+using Microsoft.AspNetCore.Mvc;
 
 public class CoffeeService : ICoffeeService
 {
@@ -16,7 +17,7 @@ public class CoffeeService : ICoffeeService
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public async Task<CoffeeResponse> BrewCoffee()
+    public async Task<CoffeeResponse> BrewCoffee([FromBody] Location? location)
     {
         var now = _dateTimeService.GetCurrentTime();
         var prepared = now.ToString("yyyy-MM-ddTHH:mm:sszzz");
@@ -39,7 +40,7 @@ public class CoffeeService : ICoffeeService
         }
 
         WeatherResponse temperatureData;
-        try { temperatureData = await _weatherService.GetCurrentWeatherAsync(-37.78700120, 175.27925300); }
+        try { temperatureData = await _weatherService.GetCurrentWeatherAsync(location?.Lat, location?.Lon); }
         catch { temperatureData = (WeatherResponse)_httpContextAccessor.HttpContext.Items["DefaultWeatherData"]; }
 
         return new CoffeeResponse

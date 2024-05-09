@@ -15,7 +15,7 @@ namespace CoffeeMachineAPI.Service
             _configuration = configuration;
         }
 
-        public async Task<WeatherResponse> GetCurrentWeatherAsync(double lat, double lon)
+        public async Task<WeatherResponse> GetCurrentWeatherAsync(double? lat, double? lon)
         {
             try
             {
