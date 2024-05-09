@@ -74,16 +74,15 @@ public class CoffeeServiceTests
     [Fact]
     public async Task BrewCoffee_202ConcurrentRequests_ShouldTrigger503EveryFifthRequest()
     {
-        var dateTimeService = new Mock<IDateTimeService>();
-        dateTimeService.Setup(s => s.GetCurrentTime()).Returns(DateTime.Now);
-        var coffeeService = new CoffeeService(dateTimeService.Object);
+        var now = new DateTime(2026, 4, 20);
+        _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(now);
 
         int numberOfRequests = 202;
         var tasks = new List<Task<CoffeeResponse>>();
 
         for (int i = 0; i < numberOfRequests; i++)
         {
-            tasks.Add(Task.Run(() => coffeeService.BrewCoffee()));
+            tasks.Add(Task.Run(() => _coffeeService.BrewCoffee()));
         }
 
         var responses = await Task.WhenAll(tasks);
