@@ -3,36 +3,18 @@ using CoffeeMachineAPI.Service;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<IDateTimeService, DateTimeService>();
+builder.Services.AddSingleton<ICoffeeService, CoffeeService>();
 
 var app = builder.Build();
 
-int requestCount = 0;
-
 app.UseExceptionHandling();
 
-app.MapGet("/brew-coffee", (IDateTimeService DateTimeService) =>
+app.MapGet("/brew-coffee", (HttpContext http, ICoffeeService coffeeService) =>
 {
-    var now = DateTimeService.GetCurrentTime();
-    // on April 1st
-    if (now.Month == 4 && now.Day == 1)
-    {
-        return Results.StatusCode(418); 
-    }
-    // secure the thread in case of race condition
-    var count = Interlocked.Increment(ref requestCount);
-
-    // every 5th request
-    if (count % 5 == 0)
-    {
-        return Results.StatusCode(503); 
-    }
-
-    var response = new
-    {
-        Message = "Your piping hot coffee is ready",
-        Prepared = now.ToString("yyyy-MM-ddTHH:mm:sszzz")
-    };
-    return Results.Json(response);
+    var response = coffeeService.BrewCoffee();
+    http.Response.StatusCode = response.StatusCode;
+    http.Response.ContentType = "application/json";
+    if (response.Body != null) { http.Response.WriteAsync(response.Body); }
 });
 
 app.Run();
