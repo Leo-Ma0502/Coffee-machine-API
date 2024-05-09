@@ -6,16 +6,22 @@ using CoffeeMachineAPI.Model;
 using System.Reflection;
 using Microsoft.AspNetCore.Http;
 using CoffeeMachineAPI.Middleware;
+using Microsoft.Extensions.Logging;
 
 public class CoffeeServiceTests
 {
     private readonly Mock<IDateTimeService> _mockDateTimeService;
+    private readonly Mock<IWeatherService> _mockWeatherService;
+    private readonly Mock<IHttpContextAccessor> _mockHttpContextAccessor;
     private readonly CoffeeService _coffeeService;
+
 
     public CoffeeServiceTests()
     {
         _mockDateTimeService = new Mock<IDateTimeService>();
-        _coffeeService = new CoffeeService(_mockDateTimeService.Object);
+        _mockWeatherService = new Mock<IWeatherService>();
+        _mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
+        _coffeeService = new CoffeeService(_mockDateTimeService.Object, _mockWeatherService.Object, _mockHttpContextAccessor.Object);
     }
 
     /*
@@ -24,12 +30,12 @@ public class CoffeeServiceTests
 
     // normal situation
     [Fact]
-    public void BrewCoffee_RegularDay_ReturnsStatusCode200AndMessage()
+    public async void BrewCoffee_RegularDay_ReturnsStatusCode200AndMessage()
     {
         var now = new DateTime(2030, 5, 2, 14, 0, 1);
         _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(now);
 
-        var response = _coffeeService.BrewCoffee();
+        var response = await _coffeeService.BrewCoffee();
 
         Assert.Equal(200, response.StatusCode);
         Assert.Contains("Your piping hot coffee is ready", response.Body);
@@ -37,12 +43,12 @@ public class CoffeeServiceTests
 
     // April 1st -> 418
     [Fact]
-    public void BrewCoffee_OnApril1st_ReturnsStatusCode418AndNoMessage()
+    public async void BrewCoffee_OnApril1st_ReturnsStatusCode418AndNoMessage()
     {
         var aprilFools = new DateTime(2033, 4, 1);
         _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(aprilFools);
 
-        var response = _coffeeService.BrewCoffee();
+        var response = await _coffeeService.BrewCoffee();
 
         Assert.Equal(418, response.StatusCode);
         Assert.Null(response.Body);
@@ -50,7 +56,7 @@ public class CoffeeServiceTests
 
     // 5*n request -> 503
     [Fact]
-    public void BrewCoffee_EveryFifthRequest_ReturnsStatusCode503AndNoMessage()
+    public async void BrewCoffee_EveryFifthRequest_ReturnsStatusCode503AndNoMessage()
     {
         var now = new DateTime(2026, 4, 20);
         _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(now);
@@ -60,7 +66,7 @@ public class CoffeeServiceTests
             _coffeeService.BrewCoffee();
         }
 
-        var response = _coffeeService.BrewCoffee();
+        var response = await _coffeeService.BrewCoffee();
 
         Assert.Equal(503, response.StatusCode);
         Assert.Null(response.Body);
@@ -82,7 +88,7 @@ public class CoffeeServiceTests
 
         for (int i = 0; i < numberOfRequests; i++)
         {
-            tasks.Add(Task.Run(() => _coffeeService.BrewCoffee()));
+            tasks.Add(Task.Run(_coffeeService.BrewCoffee));
         }
 
         var responses = await Task.WhenAll(tasks);
@@ -119,19 +125,19 @@ public class CoffeeServiceTests
     [Theory]
     [InlineData("2023-04-01T23:59:59")]
     [InlineData("2023-04-02T00:00:01")]
-    public void BrewCoffee_TimeEdgeCases_ShouldHandleCorrectly(string dateTime)
+    public async void BrewCoffee_TimeEdgeCases_ShouldHandleCorrectly(string dateTime)
     {
         var edgeDateTime = DateTime.Parse(dateTime);
         _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(edgeDateTime);
 
-        var response = _coffeeService.BrewCoffee();
+        var response = await _coffeeService.BrewCoffee();
 
         Assert.Equal(edgeDateTime.Day == 1 && edgeDateTime.Month == 4 ? 418 : 200, response.StatusCode);
     }
 
     // extreme numbers of requests
     [Fact]
-    public void BrewCoffee_ExtremeRequestVolume_ShouldNotOverflowOrCrash()
+    public async void BrewCoffee_ExtremeRequestVolume_ShouldNotOverflowOrCrash()
     {
         var now = new DateTime(2023, 5, 10);
         _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(now);
@@ -140,7 +146,7 @@ public class CoffeeServiceTests
             .GetField("requestCount", BindingFlags.NonPublic | BindingFlags.Instance)
             ?.SetValue(_coffeeService, int.MaxValue - 10);
 
-        var response = _coffeeService.BrewCoffee();
+        var response = await _coffeeService.BrewCoffee();
 
         var expectedStatusCodes = new List<int> { 200, 503 };
 
@@ -152,7 +158,8 @@ public class CoffeeServiceTests
     public async Task InvokeAsync_ThrowsException_HandlesAndReturnsInternalServerErrorCode()
     {
         var mockRequestDelegate = new Mock<RequestDelegate>();
-        var middleware = new ExceptionHandlingMiddleware(mockRequestDelegate.Object);
+        var mockLogger = new Mock<ILogger<ExceptionHandlingMiddleware>>();
+        var middleware = new ExceptionHandlingMiddleware(mockRequestDelegate.Object, mockLogger.Object);
         var context = new DefaultHttpContext();
 
         context.Response.Body = new System.IO.MemoryStream();
