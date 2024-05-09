@@ -92,6 +92,29 @@ public class CoffeeServiceTests
         Assert.True(serviceUnavailableResponses == 40, "Expected 202/5 503 responses.");
     }
 
+    // concurrent requests on April 1st -> all 418
+    [Fact]
+    public async Task BrewCoffee_202ConcurrentRequests_AprilFoolsDay_ShouldReturn418EveryRequest()
+    {
+        var now = new DateTime(2026, 4, 1);
+        _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(now);
+
+        int numberOfRequests = 402;
+        var tasks = new List<Task<CoffeeResponse>>();
+
+        for (int i = 0; i < numberOfRequests; i++)
+        {
+            tasks.Add(Task.Run(() => _coffeeService.BrewCoffee()));
+        }
+
+        var responses = await Task.WhenAll(tasks);
+
+        var serviceUnavailableResponses = responses.Count(response => response.StatusCode == 418);
+
+
+        Assert.True(serviceUnavailableResponses == 402, $"Expected 402 418 responses, actual: {serviceUnavailableResponses}");
+    }
+
     // near April 1st
     [Theory]
     [InlineData("2023-04-01T23:59:59")]
