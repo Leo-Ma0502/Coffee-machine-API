@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CoffeeMachineAPI.Exceptions;
 using CoffeeMachineAPI.Model;
 
@@ -30,13 +31,8 @@ namespace CoffeeMachineAPI.Middleware
         {
             if (e is WeatherServiceException)
             {
-                _logger.LogWarning($"Weather service error:\n {e.Message}");
-                context.Items["DefaultWeatherData"] = new WeatherResponse
-                {
-                    StatusCode = 200,
-                    Temperature = 25
-                };
-                await _next(context);
+                _logger.LogWarning("Weather service error, ignore the temperature");
+                await context.Response.WriteAsync(JsonSerializer.Deserialize<CoffeeResponse>(e.Message)?.Body ?? "");
             }
             else
             {
