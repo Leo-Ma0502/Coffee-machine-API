@@ -1,4 +1,3 @@
-using CoffeeMachineAPI.Exceptions;
 using CoffeeMachineAPI.Model;
 using System.Text.Json;
 
@@ -17,23 +16,19 @@ namespace CoffeeMachineAPI.Service
 
         public async Task<WeatherResponse> GetCurrentWeatherAsync(double lat, double lon)
         {
-            try
+            var apiUrl = _configuration["ExternalApi:Url"];
+            var apiKey = _configuration["ExternalApi:ApiKey"];
+
+            var response = await _httpClient.GetAsync($"{apiUrl}?lat={lat}&lon={lon}&units=metric&appid={apiKey}");
+            var weatherData = await JsonSerializer.DeserializeAsync<JsonElement>(await response.Content.ReadAsStreamAsync());
+
+            double temp = weatherData.GetProperty("main").GetProperty("temp").GetDouble();
+
+            return new WeatherResponse
             {
-                var apiUrl = _configuration["ExternalApi:Url"];
-                var apiKey = _configuration["ExternalApi:ApiKey"];
-
-                var response = await _httpClient.GetAsync($"{apiUrl}?lat={lat}&lon={lon}&units=metric&appid={apiKey}");
-                var weatherData = await JsonSerializer.DeserializeAsync<JsonElement>(await response.Content.ReadAsStreamAsync());
-
-                double temp = weatherData.GetProperty("main").GetProperty("temp").GetDouble();
-
-                return new WeatherResponse
-                {
-                    StatusCode = (int)response.StatusCode,
-                    Temperature = temp
-                };
-            }
-            catch (Exception e) { throw new WeatherServiceException($"Error calling third party service:\n{e}"); }
+                StatusCode = 200,
+                Temperature = temp
+            };
         }
     }
 
