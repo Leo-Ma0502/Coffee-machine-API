@@ -22,7 +22,7 @@ cd Coffee-machine-API
 
 ## Environment variables (IMPORTANT IF PLANNING TO RUN IT)
 
-To secure the third party url and api key, these variables are not included in the source code, and the configuration file containing these information are removed from the repository. Thus, please create a file "appsettings.json" in Coffee-machine-API/CoffeeMachineAPI, and add the following content in it:
+To secure the third-party URL and API key, these variables are not included in the source code, and the configuration file containing this information is removed from the repository. Thus, please edit the file "appsettings.json" in CoffeeMachineAPI (the directory at the same level as CoffeeMachineAPITests), and this file should look like this after changing:
 
 ```
 {
@@ -40,7 +40,7 @@ To secure the third party url and api key, these variables are not included in t
 }
 ```
 
-Please refer to [this google document](https://docs.google.com/document/d/1I8J_-wkqF0aPMc-QKPGjfvzD-IwRT988nDpXxIQSrb0/edit?usp=sharing) to get the value of url and apikey.
+Please refer to [this Google document](https://docs.google.com/document/d/1I8J_-wkqF0aPMc-QKPGjfvzD-IwRT988nDpXxIQSrb0/edit?usp=sharing) to get the value of {url} and {apikey}.
 
 ## How to test
 
