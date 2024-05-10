@@ -7,21 +7,21 @@ using System.Reflection;
 using Microsoft.AspNetCore.Http;
 using CoffeeMachineAPI.Middleware;
 using Microsoft.Extensions.Logging;
+using CoffeeMachineAPI.Exceptions;
+using System.Text.Json.Nodes;
+using System.Text.Json;
 
 public class CoffeeServiceTests
 {
     private readonly Mock<IDateTimeService> _mockDateTimeService;
     private readonly Mock<IWeatherService> _mockWeatherService;
-    private readonly Mock<IHttpContextAccessor> _mockHttpContextAccessor;
     private readonly CoffeeService _coffeeService;
-
 
     public CoffeeServiceTests()
     {
         _mockDateTimeService = new Mock<IDateTimeService>();
         _mockWeatherService = new Mock<IWeatherService>();
-        _mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
-        _coffeeService = new CoffeeService(_mockDateTimeService.Object, _mockWeatherService.Object, _mockHttpContextAccessor.Object);
+        _coffeeService = new CoffeeService(_mockDateTimeService.Object, _mockWeatherService.Object);
     }
 
     /*
@@ -34,7 +34,6 @@ public class CoffeeServiceTests
     {
         var now = new DateTime(2030, 5, 2, 14, 0, 1);
         _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(now);
-
         var response = await _coffeeService.BrewCoffee(null);
 
         Assert.Equal(200, response.StatusCode);
@@ -47,7 +46,6 @@ public class CoffeeServiceTests
     {
         var aprilFools = new DateTime(2033, 4, 1);
         _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(aprilFools);
-
         var response = await _coffeeService.BrewCoffee(null);
 
         Assert.Equal(418, response.StatusCode);
@@ -71,6 +69,22 @@ public class CoffeeServiceTests
         Assert.Equal(503, response.StatusCode);
         Assert.Null(response.Body);
     }
+
+    // temperature > 30 -> iced coffee
+    [Fact]
+    public async void BrewCoffee_TemperatureAbove30C_ReturnsStatusCode300AndIcedCoffeeMessage()
+    {
+        var now = new DateTime(2026, 4, 20);
+        var temperatureData = new WeatherResponse { StatusCode = 200, Temperature = 35 };
+        _mockWeatherService.Setup(s => s.GetCurrentWeatherAsync(null, null)).Returns(Task.FromResult(temperatureData));
+        _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(now);
+
+        var response = await _coffeeService.BrewCoffee(null);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Contains("Your refreshing iced coffee is ready", response.Body);
+    }
+
 
     /*
     * edge cases
@@ -154,7 +168,7 @@ public class CoffeeServiceTests
         Assert.True(expectedStatusCodes.Contains(response.StatusCode), "Returned valid status code under extreme request numbers.");
     }
 
-    // exception handling
+    // general exception handling
     [Fact]
     public async Task InvokeAsync_ThrowsException_HandlesAndReturnsInternalServerErrorCode()
     {
@@ -177,4 +191,110 @@ public class CoffeeServiceTests
         Assert.Contains("Mock exception", responseBody);
     }
 
+    // WeatherService exception handling: 
+    // The CoffeeService is expected to throw WeatherServiceException when WeatherService throws any exception
+    [Fact]
+    public async Task HandleExceptionAsync_ThrowsWeatherServiceException()
+    {
+        var mockRequestDelegate = new Mock<RequestDelegate>();
+        var mockLogger = new Mock<ILogger<ExceptionHandlingMiddleware>>();
+        var middleware = new ExceptionHandlingMiddleware(mockRequestDelegate.Object, mockLogger.Object);
+
+        var now = new DateTime(2026, 4, 20);
+        _mockWeatherService.Setup(s => s.GetCurrentWeatherAsync(null, null))
+                          .ThrowsAsync(new Exception("Any exception"));
+        _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(now);
+
+        var exception = await Assert.ThrowsAsync<WeatherServiceException>(() => _coffeeService.BrewCoffee(null));
+        // exception message
+        var eMessage = JsonDocument.Parse(exception.Message).RootElement;
+        var StatusCode = eMessage.GetProperty("StatusCode");
+        var Body = JsonDocument.Parse(eMessage.GetProperty("Body").ToString()).RootElement;
+
+        // {
+        //   “Message”: “Your piping hot coffee is ready”,
+        //   “Prepared”: “2021-02- 03T11:56:24+0900”
+        // };
+        var Message = Body.GetProperty("Message");
+        var Prepared = Body.GetProperty("Prepared");
+
+        // the throwed error should contain coffee response
+        Assert.Equal(200, Int32.Parse(StatusCode.ToString()));
+        Assert.Equal("Your piping hot coffee is ready", Message.ToString());
+        Assert.Equal(now.ToString("yyyy-MM-ddTHH:mm:sszzz"), Prepared.ToString());
+    }
+
+    // WeatherService exception handling: 
+    // The pipeline is expected to handle WeatherServiceException
+    [Fact]
+    public async Task HandleExceptionAsync_LogsWarningAndReturnsIngoringWeather()
+    {
+        var mockRequestDelegate = new Mock<RequestDelegate>();
+        var mockLogger = new Mock<ILogger<ExceptionHandlingMiddleware>>();
+
+        var now = new DateTime(2026, 4, 20);
+        _mockWeatherService.Setup(s => s.GetCurrentWeatherAsync(null, null))
+                          .ThrowsAsync(new Exception("Any exception"));
+        _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(now);
+
+        var middleware = new ExceptionHandlingMiddleware(mockRequestDelegate.Object, mockLogger.Object);
+
+        var context = new DefaultHttpContext();
+        context.Request.Body = new MemoryStream();
+        context.Response.Body = new MemoryStream();
+
+        mockRequestDelegate.Setup(rd => rd.Invoke(It.IsAny<HttpContext>()))
+                           .ThrowsAsync(new WeatherServiceException(JsonSerializer.Serialize(new CoffeeResponse
+                           {
+                               StatusCode = 200,
+                               Body = JsonSerializer.Serialize(new
+                               {
+                                   Message = "Your piping hot coffee is ready",
+                                   Prepared = now.ToString("yyyy-MM-ddTHH:mm:sszzz"),
+                               })
+                           })));
+
+        await middleware.InvokeAsync(context);
+
+        // Verify logging
+        mockLogger.Verify(
+            x => x.Log(
+                It.Is<LogLevel>(l => l == LogLevel.Warning),
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Weather service error, ignore the temperature")),
+                It.IsAny<Exception>(),
+                It.Is<Func<It.IsAnyType, Exception, string>>((v, t) => true)),
+            Times.Once);
+
+        // Verify status code
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+
+        // Verify response content
+        context.Response.Body.Seek(0, System.IO.SeekOrigin.Begin);
+        var reader = new System.IO.StreamReader(context.Response.Body);
+        var responseBody = JsonDocument.Parse(await reader.ReadToEndAsync()).RootElement;
+        var Message = responseBody.GetProperty("Message");
+        var Prepared = responseBody.GetProperty("Prepared");
+        Assert.Equal("Your piping hot coffee is ready", Message.ToString());
+        Assert.Equal(now.ToString("yyyy-MM-ddTHH:mm:sszzz"), Prepared.ToString());
+    }
+
+    // WeatherService exception handling on April 1st: 
+    // The pipeline is expected to return 418 directly
+    [Fact]
+    public async Task BrewCoffee_WeatherServiceExceptionOnApril1st_ReturnsStatusCode418AndNoMessage()
+    {
+        var mockRequestDelegate = new Mock<RequestDelegate>();
+        var mockLogger = new Mock<ILogger<ExceptionHandlingMiddleware>>();
+
+        var now = new DateTime(2036, 4, 1);
+        _mockWeatherService.Setup(s => s.GetCurrentWeatherAsync(null, null))
+                          .ThrowsAsync(new Exception("Any exception"));
+        _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(now);
+
+        var response = await _coffeeService.BrewCoffee(null);
+
+        Assert.Equal(418, response.StatusCode);
+        Assert.Null(response.Body);
+    }
 }
