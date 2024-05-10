@@ -13,8 +13,13 @@ var app = builder.Build();
 
 app.UseExceptionHandling();
 
-app.MapGet("/brew-coffee", async (HttpContext http, ICoffeeService coffeeService, [FromBody] Location? location) =>
+app.MapGet("/brew-coffee", async (HttpContext http, ICoffeeService coffeeService, [FromQuery] double? lat, [FromQuery] double? lon) =>
 {
+    var location = new Location
+    {
+        Lat = lat,
+        Lon = lon
+    };
     var response = await coffeeService.BrewCoffee(location);
     http.Response.StatusCode = response.StatusCode;
     http.Response.ContentType = "application/json";
