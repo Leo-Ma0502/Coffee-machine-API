@@ -6,6 +6,8 @@ using CoffeeMachineAPI.Model;
 using System.Reflection;
 using Microsoft.AspNetCore.Http;
 using CoffeeMachineAPI.Middleware;
+using System.Text.Json.Nodes;
+using System.Text.Json;
 
 public class CoffeeServiceTests
 {
@@ -31,8 +33,13 @@ public class CoffeeServiceTests
 
         var response = _coffeeService.BrewCoffee();
 
+        var responseBody = JsonDocument.Parse(response.Body?.ToString()).RootElement;
+        var Message = responseBody.GetProperty("Message").ToString();
+        var Prepared = responseBody.GetProperty("Prepared").ToString();
+
         Assert.Equal(200, response.StatusCode);
-        Assert.Contains("Your piping hot coffee is ready", response.Body);
+        Assert.Equal("Your piping hot coffee is ready", Message);
+        Assert.Equal($"{now.ToString("yyyy-MM-ddTHH:mm:ss")}{now.ToString("zzz").Replace(":", "")}", Prepared);
     }
 
     // April 1st -> 418
