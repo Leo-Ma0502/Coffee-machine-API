@@ -22,7 +22,7 @@ cd Coffee-machine-API
 
 ## Environment variables (IMPORTANT IF PLANNING TO RUN IT)
 
-To secure the third-party URL and API key, these variables are not included in the source code, and the configuration file containing this information is removed from the repository. Thus, please edit the file "appsettings.json" in CoffeeMachineAPI (the directory at the same level as CoffeeMachineAPITests), and this file should look like this after changing:
+To secure the third-party URL and API key, these variables are not included in the source code, and the configuration file containing this information is removed from the repository. Thus, in [6-feature/integrate-temperature-information](https://github.com/Leo-Ma0502/Coffee-machine-API/tree/6-feature/integrate-temperature-information), please create the file "appsettings.json" in CoffeeMachineAPI (the directory at the same level as CoffeeMachineAPITests), and this file should look like this after changing:
 
 ```
 {
