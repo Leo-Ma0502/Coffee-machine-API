@@ -19,7 +19,7 @@ public class CoffeeService : ICoffeeService
     public async Task<CoffeeResponse> BrewCoffee([FromBody] Location? location)
     {
         var now = _dateTimeService.GetCurrentTime();
-        var prepared = now.ToString("yyyy-MM-ddTHH:mm:sszzz");
+        var prepared = $"{now.ToString("yyyy-MM-ddTHH:mm:ss")}{now.ToString("zzz").Replace(":", "")}";
 
         if (now.Month == 4 && now.Day == 1)
         {

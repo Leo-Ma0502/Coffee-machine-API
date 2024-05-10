@@ -36,8 +36,13 @@ public class CoffeeServiceTests
         _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(now);
         var response = await _coffeeService.BrewCoffee(null);
 
+        var responseBody = JsonDocument.Parse(response.Body?.ToString()).RootElement;
+        var Message = responseBody.GetProperty("Message").ToString();
+        var Prepared = responseBody.GetProperty("Prepared").ToString();
+
         Assert.Equal(200, response.StatusCode);
-        Assert.Contains("Your piping hot coffee is ready", response.Body);
+        Assert.Equal("Your piping hot coffee is ready", Message);
+        Assert.Equal($"{now.ToString("yyyy-MM-ddTHH:mm:ss")}{now.ToString("zzz").Replace(":", "")}", Prepared);
     }
 
     // April 1st -> 418
@@ -81,8 +86,13 @@ public class CoffeeServiceTests
 
         var response = await _coffeeService.BrewCoffee(null);
 
+        var responseBody = JsonDocument.Parse(response.Body?.ToString()).RootElement;
+        var Message = responseBody.GetProperty("Message").ToString();
+        var Prepared = responseBody.GetProperty("Prepared").ToString();
+
         Assert.Equal(200, response.StatusCode);
-        Assert.Contains("Your refreshing iced coffee is ready", response.Body);
+        Assert.Equal("Your refreshing iced coffee is ready", Message);
+        Assert.Equal($"{now.ToString("yyyy-MM-ddTHH:mm:ss")}{now.ToString("zzz").Replace(":", "")}", Prepared);
     }
 
 
@@ -221,7 +231,7 @@ public class CoffeeServiceTests
         // the throwed error should contain coffee response
         Assert.Equal(200, Int32.Parse(StatusCode.ToString()));
         Assert.Equal("Your piping hot coffee is ready", Message.ToString());
-        Assert.Equal(now.ToString("yyyy-MM-ddTHH:mm:sszzz"), Prepared.ToString());
+        Assert.Equal($"{now.ToString("yyyy-MM-ddTHH:mm:ss")}{now.ToString("zzz").Replace(":", "")}", Prepared.ToString());
     }
 
     // WeatherService exception handling: 
@@ -233,6 +243,7 @@ public class CoffeeServiceTests
         var mockLogger = new Mock<ILogger<ExceptionHandlingMiddleware>>();
 
         var now = new DateTime(2026, 4, 20);
+
         _mockWeatherService.Setup(s => s.GetCurrentWeatherAsync(null, null))
                           .ThrowsAsync(new Exception("Any exception"));
         _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(now);
@@ -250,7 +261,7 @@ public class CoffeeServiceTests
                                Body = JsonSerializer.Serialize(new
                                {
                                    Message = "Your piping hot coffee is ready",
-                                   Prepared = now.ToString("yyyy-MM-ddTHH:mm:sszzz"),
+                                   Prepared = $"{now.ToString("yyyy-MM-ddTHH:mm:ss")}{now.ToString("zzz").Replace(":", "")}",
                                })
                            })));
 
@@ -276,7 +287,7 @@ public class CoffeeServiceTests
         var Message = responseBody.GetProperty("Message");
         var Prepared = responseBody.GetProperty("Prepared");
         Assert.Equal("Your piping hot coffee is ready", Message.ToString());
-        Assert.Equal(now.ToString("yyyy-MM-ddTHH:mm:sszzz"), Prepared.ToString());
+        Assert.Equal($"{now.ToString("yyyy-MM-ddTHH:mm:ss")}{now.ToString("zzz").Replace(":", "")}", Prepared.ToString());
     }
 
     // WeatherService exception handling on April 1st: 
