@@ -223,15 +223,18 @@ public class CoffeeServiceTests
 
         // {
         //   “Message”: “Your piping hot coffee is ready”,
-        //   “Prepared”: “2021-02- 03T11:56:24+0900”
+        //   “Prepared”: “2021-02- 03T11:56:24+0900”，
+        //   “ErrorOfWeatherService” = e.Message
         // };
         var Message = Body.GetProperty("Message");
         var Prepared = Body.GetProperty("Prepared");
+        var ErrorOfWeatherService = Body.GetProperty("ErrorOfWeatherService");
 
-        // the throwed error should contain coffee response
+        // the throwed error should contain coffee response and error details
         Assert.Equal(200, Int32.Parse(StatusCode.ToString()));
         Assert.Equal("Your piping hot coffee is ready", Message.ToString());
         Assert.Equal($"{now.ToString("yyyy-MM-ddTHH:mm:ss")}{now.ToString("zzz").Replace(":", "")}", Prepared.ToString());
+        Assert.Equal("Any exception", ErrorOfWeatherService.ToString());
     }
 
     // WeatherService exception handling: 
@@ -262,6 +265,7 @@ public class CoffeeServiceTests
                                {
                                    Message = "Your piping hot coffee is ready",
                                    Prepared = $"{now.ToString("yyyy-MM-ddTHH:mm:ss")}{now.ToString("zzz").Replace(":", "")}",
+                                   ErrorOfWeatherService = "Any exception"
                                })
                            })));
 
@@ -272,7 +276,7 @@ public class CoffeeServiceTests
             x => x.Log(
                 It.Is<LogLevel>(l => l == LogLevel.Warning),
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Weather service error, ignore the temperature")),
+                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Weather service error, ignore the temperature.\nError details:\nAny exception")),
                 It.IsAny<Exception>(),
                 It.Is<Func<It.IsAnyType, Exception, string>>((v, t) => true)),
             Times.Once);
