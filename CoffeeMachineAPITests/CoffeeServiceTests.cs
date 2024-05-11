@@ -223,15 +223,18 @@ public class CoffeeServiceTests
 
         // {
         //   “Message”: “Your piping hot coffee is ready”,
-        //   “Prepared”: “2021-02- 03T11:56:24+0900”
+        //   “Prepared”: “2021-02- 03T11:56:24+0900”，
+        //   “ErrorOfWeatherService” = e.Message
         // };
         var Message = Body.GetProperty("Message");
         var Prepared = Body.GetProperty("Prepared");
+        var ErrorOfWeatherService = Body.GetProperty("ErrorOfWeatherService");
 
-        // the throwed error should contain coffee response
+        // the throwed error should contain coffee response and error details
         Assert.Equal(200, Int32.Parse(StatusCode.ToString()));
         Assert.Equal("Your piping hot coffee is ready", Message.ToString());
         Assert.Equal($"{now.ToString("yyyy-MM-ddTHH:mm:ss")}{now.ToString("zzz").Replace(":", "")}", Prepared.ToString());
+        Assert.Equal("Any exception", ErrorOfWeatherService.ToString());
     }
 
     // WeatherService exception handling: 
@@ -262,6 +265,7 @@ public class CoffeeServiceTests
                                {
                                    Message = "Your piping hot coffee is ready",
                                    Prepared = $"{now.ToString("yyyy-MM-ddTHH:mm:ss")}{now.ToString("zzz").Replace(":", "")}",
+                                   ErrorOfWeatherService = "Any exception"
                                })
                            })));
 
@@ -272,7 +276,7 @@ public class CoffeeServiceTests
             x => x.Log(
                 It.Is<LogLevel>(l => l == LogLevel.Warning),
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Weather service error, ignore the temperature")),
+                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Weather service error, ignore the temperature.\nError details:\nAny exception")),
                 It.IsAny<Exception>(),
                 It.Is<Func<It.IsAnyType, Exception, string>>((v, t) => true)),
             Times.Once);
@@ -307,5 +311,90 @@ public class CoffeeServiceTests
 
         Assert.Equal(418, response.StatusCode);
         Assert.Null(response.Body);
+    }
+
+    // Request with no location parameter -> return normally, with warning
+    [Fact]
+    public async Task BrewCoffee_NoLocationParameter_ReturnsStatusCode200WithWarning()
+    {
+        var now = new DateTime(2024, 5, 10);
+        _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(now);
+
+        var temperatureData = new WeatherResponse { StatusCode = 200, Temperature = 20 };
+        _mockWeatherService.Setup(s => s.GetCurrentWeatherAsync(null, null)).Returns(Task.FromResult(temperatureData));
+
+        var mockRequestDelegate = new Mock<RequestDelegate>();
+        var mockLogger = new Mock<ILogger<ParameterValidationMiddleware>>();
+        var middleware = new ParameterValidationMiddleware(mockRequestDelegate.Object, mockLogger.Object);
+
+        var context = new DefaultHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Path = "/brew-coffee";
+        context.Request.QueryString = new QueryString("?lat=&lon=");
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+        Location? location = context.Items.TryGetValue("Location", out var locationObj) ? locationObj as Location : null;
+        var response = await _coffeeService.BrewCoffee(null);
+
+        var responseBody = JsonDocument.Parse(response.Body?.ToString()).RootElement;
+        var Message = responseBody.GetProperty("Message").ToString();
+        var Prepared = responseBody.GetProperty("Prepared").ToString();
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal("Your piping hot coffee is ready", Message);
+        Assert.Equal($"{now.ToString("yyyy-MM-ddTHH:mm:ss")}{now.ToString("zzz").Replace(":", "")}", Prepared);
+
+        mockLogger.Verify(
+            x => x.Log(
+                It.Is<LogLevel>(l => l == LogLevel.Warning),
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Both 'lat' and 'lon' parameters are required and must be valid numbers for this endpoint.")),
+                It.IsAny<Exception>(),
+                It.Is<Func<It.IsAnyType, Exception, string>>((v, t) => true)),
+            Times.Once);
+    }
+
+    // Request with invalid location parameters -> return normally, with warning
+    [Fact]
+    public async Task BrewCoffee_InvalidLocationParameter_ReturnsStatusCode200WithWarning()
+    {
+        var now = new DateTime(2024, 5, 10);
+        _mockDateTimeService.Setup(s => s.GetCurrentTime()).Returns(now);
+
+        var temperatureData = new WeatherResponse { StatusCode = 200, Temperature = 20 };
+        _mockWeatherService.Setup(s => s.GetCurrentWeatherAsync(null, null)).Returns(Task.FromResult(temperatureData));
+
+        var mockRequestDelegate = new Mock<RequestDelegate>();
+        var mockLogger = new Mock<ILogger<ParameterValidationMiddleware>>();
+        var middleware = new ParameterValidationMiddleware(mockRequestDelegate.Object, mockLogger.Object);
+
+        var context = new DefaultHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Path = "/brew-coffee";
+        context.Request.QueryString = new QueryString("?lat=9999&lon=9999");
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        Location? location = context.Items.TryGetValue("Location", out var locationObj) ? locationObj as Location : null;
+        var response = await _coffeeService.BrewCoffee(location);
+
+        var responseBody = JsonDocument.Parse(response.Body?.ToString()).RootElement;
+        var Message = responseBody.GetProperty("Message").ToString();
+        var Prepared = responseBody.GetProperty("Prepared").ToString();
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal("Your piping hot coffee is ready", Message);
+        Assert.Equal($"{now.ToString("yyyy-MM-ddTHH:mm:ss")}{now.ToString("zzz").Replace(":", "")}", Prepared);
+
+        mockLogger.Verify(
+            x => x.Log(
+                It.Is<LogLevel>(l => l == LogLevel.Warning),
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Parameters 'lat' must be between -90 and 90 and 'lon' must be between -180 and 180.")),
+                It.IsAny<Exception>(),
+                It.Is<Func<It.IsAnyType, Exception, string>>((v, t) => true)),
+            Times.Once);
     }
 }

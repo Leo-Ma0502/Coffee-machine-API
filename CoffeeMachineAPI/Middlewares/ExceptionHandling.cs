@@ -31,8 +31,14 @@ namespace CoffeeMachineAPI.Middleware
         {
             if (e is WeatherServiceException)
             {
-                _logger.LogWarning("Weather service error, ignore the temperature");
-                await context.Response.WriteAsync(JsonSerializer.Deserialize<CoffeeResponse>(e.Message)?.Body ?? "");
+                var messageFromCoffeeService = JsonDocument.Parse(e.Message).RootElement;
+                // body of messageFromCoffeeService, containing Message, Prepared, ErrorOfWeatherService
+                var messageBody = JsonDocument.Parse(messageFromCoffeeService.GetProperty("Body").ToString()).RootElement;
+                // remove the error message from the response body
+                var responseBody = new { Message = messageBody.GetProperty("Message"), Prepared = messageBody.GetProperty("Prepared") };
+                // add error details in the warning
+                _logger.LogWarning($"Weather service error, ignore the temperature.\nError details:\n{messageBody.GetProperty("ErrorOfWeatherService")}");
+                await context.Response.WriteAsync(JsonSerializer.Serialize(responseBody));
             }
             else
             {

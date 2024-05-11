@@ -38,29 +38,37 @@ public class CoffeeService : ICoffeeService
             };
         }
 
-        WeatherResponse temperatureData;
-        try { temperatureData = await _weatherService.GetCurrentWeatherAsync(location?.Lat, location?.Lon); }
-        catch
+        try
         {
-            throw new WeatherServiceException(JsonSerializer.Serialize(new CoffeeResponse
+            var temperatureData = await _weatherService.GetCurrentWeatherAsync(location?.Lat, location?.Lon);
+            var message = temperatureData?.Temperature > 30 ? "Your refreshing iced coffee is ready" : "Your piping hot coffee is ready";
+
+            return new CoffeeResponse
+            {
+                StatusCode = 200,
+                Body = JsonSerializer.Serialize(new
+                {
+                    Message = message,
+                    Prepared = prepared,
+                })
+            };
+        }
+        catch (Exception e)
+        {
+            // produce a CoffeeResponse even if there is an exception
+            // but including error information
+            var protectedResponse = new CoffeeResponse
             {
                 StatusCode = 200,
                 Body = JsonSerializer.Serialize(new
                 {
                     Message = "Your piping hot coffee is ready",
                     Prepared = prepared,
+                    ErrorOfWeatherService = e.Message
                 })
-            }));
+            };
+            // throw the above information, including the coffee response that should be returned and the error details
+            throw new WeatherServiceException(JsonSerializer.Serialize(protectedResponse));
         }
-
-        return new CoffeeResponse
-        {
-            StatusCode = 200,
-            Body = JsonSerializer.Serialize(new
-            {
-                Message = temperatureData?.Temperature > 30 ? "Your refreshing iced coffee is ready" : "Your piping hot coffee is ready",
-                Prepared = prepared,
-            })
-        };
     }
 }
